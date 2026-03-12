@@ -11,10 +11,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 scope = ["https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive"]
 
-
-creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-
+svc = dict(st.secrets["google_service_account"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(svc, scope)
 client = gspread.authorize(creds)
 
 sheet = client.open("RegistroPresenze").sheet1  # nome Google Sheet
