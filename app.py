@@ -1,7 +1,8 @@
 # %% dash presenze
-# streamlit run D:\users\TA16669\PycharmProjects\PythonProject\fun\p1.py
+# streamlit run D:\users\TA16669\PycharmProjects\PythonProject\fun\app.py
 import streamlit as st
 import pandas as pd
+import json
 from datetime import date
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -10,10 +11,10 @@ from oauth2client.service_account import ServiceAccountCredentials
 scope = ["https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive"]
 
-creds = ServiceAccountCredentials.from_json_keyfile_name(
-    r"D:\users\TA16669\PycharmProjects\PythonProject\fun\service_account.json",
-    scope
-)
+
+creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
 client = gspread.authorize(creds)
 
 sheet = client.open("RegistroPresenze").sheet1  # nome Google Sheet
