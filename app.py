@@ -205,28 +205,60 @@ st.markdown(
 df_all = load_df()
 matrix = build_week_matrix(df_all, monday_sel)
 
-# Stile immagini (usa < > reali, non &lt; &gt;)
+# --- STILI: avatar + prima colonna + altezza riga ---
 st.markdown(
-    "<style>img.userpic{width:40px;height:40px;border-radius:6px;object-fit:cover;}</style>",
+    """
+    <style>
+      /* dimensione avatar (quadrato o tondo cambiando border-radius) */
+      img.userpic {
+        width: 56px;
+        height: 56px;
+        border-radius: 8px;      /* metti 50% per avatar tondo */
+        object-fit: cover;
+        display: block;
+        margin: 0 auto;          /* centra in cella */
+      }
+
+      /* allarga la prima colonna (colonna immagini) */
+      table.dataframe td:first-child, 
+      table.dataframe th:first-child {
+        width: 72px !important;   /* spazio sufficiente per 56px + padding */
+        min-width: 72px !important;
+        max-width: 72px !important;
+        text-align: center;
+      }
+
+      /* aumenta altezza riga e centra verticalmente il contenuto */
+      table.dataframe td, table.dataframe th {
+        padding: 10px 12px;
+        line-height: 1.25em;
+        vertical-align: middle !important;
+      }
+
+      /* colonna indice (nomi utenti) un po' più larga e centrata verticalmente */
+      table.dataframe th.row_heading {
+        min-width: 150px;
+        vertical-align: middle !important;
+      }
+    </style>
+    """,
     unsafe_allow_html=True
 )
 
-# Prepara tabella HTML: la colonna immagini ora ha intestazione vuota ""
+# --- PREPARA TAB HTML: trasforma data URL in <img> nella prima colonna "" ---
 matrix_html = matrix.copy()
 
-# Inserisci il tag <img> nella colonna "" (prima colonna)
-for user in USERS:
-    b64 = None
-    if "" in matrix_html.columns:
+if "" in matrix_html.columns:
+    for user in USERS:
         b64 = matrix_html.loc[user, ""]
-    if b64:
-        matrix_html.loc[user, ""] = f'<img src="{b64}" class="userpic" alt="{user}">'
+        if b64:
+            matrix_html.loc[user, ""] = f'<img src="{b64}" class="userpic">'
 
-# Applica colori a tutte le colonne tranne quella delle immagini
+# Applica colori a tutte le colonne tranne la colonna immagini ""
 color_cols = [c for c in matrix_html.columns if c != ""]
 styled = matrix_html.style.applymap(style_colors, subset=color_cols)
 
-# Render senza escaping per permettere <img>
+# Render HTML (niente escape per permettere <img>)
 st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
 st.divider()
