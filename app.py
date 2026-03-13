@@ -176,7 +176,7 @@ def style_colors(val: str) -> str:
 # INTERFACCIA
 # =========================
 
-st.title("📅 Pianificazione Presenze Settimanali (con Foto)")
+st.title("Leasys HQ Credit - Presenze Settimanali 📅")
 
 today = date.today()
 
@@ -201,7 +201,7 @@ st.markdown(
 )
 
 # Toggle Modalità Mobile
-mobile = st.toggle("📱 Modalità mobile", value=True, help="Vista ottimizzata per smartphone")
+mobile = st.toggle("📱 Modalità mobile", value=False, help="Vista ottimizzata per smartphone")
 
 # Carica dati e matrice
 df_all = load_df()
