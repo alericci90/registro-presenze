@@ -19,7 +19,9 @@ USERS = [
     "Ricci Alessio"
 ]
 
-STATUS = ["Smart Working", "Ufficio"]
+# Stati disponibili (inclusi i nuovi)
+STATUS = ["Smart Working", "Ufficio", "Non registrato", "Assente"]
+
 SHEET_NAME = "RegistroPresenze"
 
 # Path immagini sul repo GitHub — caricate come BASE64
@@ -31,18 +33,20 @@ USER_IMAGES = {
     "Ricci Alessio": "images/AR.jpg"
 }
 
-# Colori celle
+# Colori celle (tabella desktop)
 COLOR_MAP = {
-    "Smart Working": "background-color: #85C1E9; color: #0A0A0A;",
-    "Ufficio":       "background-color: #82E0AA; color: #0A0A0A;",
-    "Non registrato":"background-color: #D5D8DC; color: #0A0A0A;"
+    "Smart Working": "background-color: #85C1E9; color: #0A0A0A;",  # azzurro
+    "Ufficio":       "background-color: #82E0AA; color: #0A0A0A;",  # verde
+    "Non registrato":"background-color: #D5D8DC; color: #0A0A0A;",  # grigio
+    "Assente":       "background-color: #F1948A; color: #0A0A0A;",  # rosso/rosa
 }
 
-# Colori “pillole” in modalità mobile
+# Colori “pillole” in modalità mobile (coerenti con la tabella)
 PILL_BG = {
     "Smart Working": "#85C1E9",
     "Ufficio": "#82E0AA",
-    "Non registrato": "#D5D8DC"
+    "Non registrato": "#D5D8DC",
+    "Assente": "#F1948A",
 }
 PILL_FG = "#0A0A0A"
 
@@ -58,14 +62,14 @@ st.set_page_config(page_title="Pianificazione Presenze", layout="wide")
 # =========================
 
 def img_to_base64(path: str) -> str | None:
-    """Legge file immagine → base64 inline (ritorna data URL)."""
+    """Legge file immagine → data URL base64 (sicuro su Streamlit Cloud)."""
     try:
         with open(path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
-        # Dettaglio: prova a inferire il mime type dal suffisso
+        # Inferisci il mime type dal suffisso
         if path.lower().endswith(".png"):
             mime = "image/png"
-        elif path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
+        elif path.lower().endswith((".jpg", ".jpeg")):
             mime = "image/jpeg"
         else:
             mime = "image/png"
@@ -128,11 +132,16 @@ def load_df() -> pd.DataFrame:
 
 
 def append_week_plan(user: str, monday: date, choices: dict[date, str]):
+    """
+    Salva la pianificazione per i 5 giorni.
+    NB: se l'utente sceglie 'Non registrato', lo salviamo comunque esplicitamente,
+    così la vista è coerente tra form e tabella.
+    """
     now_iso = datetime.now().isoformat(timespec="seconds")
     week_no = monday.isocalendar().week
 
     for d in week_dates(monday):
-        presenza = choices.get(d, "Ufficio")
+        presenza = choices.get(d, "Non registrato")
         row = [
             user,
             d.isoformat(),
@@ -169,6 +178,7 @@ def build_week_matrix(df: pd.DataFrame, monday: date) -> pd.DataFrame:
 
 
 def style_colors(val: str) -> str:
+    # Colora in base alla mappa; default grigio
     return COLOR_MAP.get(val, COLOR_MAP["Non registrato"])
 
 
@@ -176,7 +186,19 @@ def style_colors(val: str) -> str:
 # INTERFACCIA
 # =========================
 
-st.title("Leasys HQ Credit - Presenze Settimanali 📅")
+# --- LOGO in alto (centrato) ---
+logo_url = img_to_base64("images/logo.jpg")
+if logo_url:
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:center; align-items:center; margin-bottom: 8px;">
+            {f'<img src="{logo_url}" style="max-width:220px; height:auto; border-radius:6px;" />'}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+st.title("📅 Pianificazione Presenze Settimanali (con Foto)")
 
 today = date.today()
 
@@ -196,12 +218,11 @@ friday_sel = monday_sel + timedelta(days=4)
 week_no = monday_sel.isocalendar().week
 
 st.markdown(
-    f"### 🗓️ Settimana {week_no}: "
-    f"**{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
+    f"### 🗓️ Settimana {week_no}: **{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
 )
 
-# Toggle Modalità Mobile
-mobile = st.toggle("📱 Modalità mobile", value=False, help="Vista ottimizzata per smartphone")
+# Toggle Modalità Mobile (ON di default)
+mobile = st.toggle("📱 Modalità mobile", value=True, help="Vista ottimizzata per smartphone")
 
 # Carica dati e matrice
 df_all = load_df()
@@ -284,8 +305,10 @@ else:
         for col in matrix.columns:
             stato = str(matrix.loc[user, col])
             bg = PILL_BG.get(stato, "#D5D8DC")
-            fg = PILL_FG
-            pills_html += f"<span class='pill' style='background:{bg};color:{fg};'>{col.split()[0]}: {stato}</span>"
+            pills_html += (
+                f"<span class='pill' style='background:{bg};color:{PILL_FG};'>"
+                f"{col.split()[0]}: {stato}</span>"
+            )
 
         card_html = (
             "<div class='card'>"
@@ -308,17 +331,18 @@ st.subheader("✏️ Imposta pianificazione settimanale")
 
 utente = st.selectbox("Utente:", USERS)
 
-cols = st.columns(5) if not mobile else st.columns(1)  # su mobile una colonna verticale
+# Su mobile mettiamo radio verticali (una colonna), su desktop in 5 colonne
+cols = st.columns(5) if not mobile else st.columns(1)
 choices: dict[date, str] = {}
 
 for i, d in enumerate(week_dates(monday_sel)):
     with (cols[i] if not mobile else cols[0]):
         scelta = st.radio(
             label=format_data_it(d),
-            options=STATUS,
-            index=1,  # default Ufficio
+            options=STATUS,        # include anche "Non registrato" e "Assente"
+            index=2,               # default = "Non registrato"
             key=f"{utente}_{d.isoformat()}_{'m' if mobile else 'd'}_{week_offset}",
-            horizontal=not mobile  # su mobile meglio verticale
+            horizontal=not mobile
         )
         choices[d] = scelta
 
