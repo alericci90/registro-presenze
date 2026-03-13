@@ -1,5 +1,7 @@
 # %% dash presenze
 # streamlit run D:\users\TA16669\PycharmProjects\PythonProject\fun\app.py
+# %% dash presenze
+# streamlit run D:\users\TA16669\PycharmProjects\PythonProject\fun\app.py
 import streamlit as st
 import pandas as pd
 from datetime import date, datetime, timedelta
@@ -48,7 +50,7 @@ MESI_IT = ["gennaio","febbraio","marzo","aprile","maggio","giugno",
 # =========================
 
 def img_to_base64(path):
-    """Legge un file immagine locale → base64 per HTML inline."""
+    """Legge file immagine → base64."""
     try:
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
@@ -101,7 +103,6 @@ def load_df():
 
     df = pd.DataFrame(records)
 
-    # Adeguamento colonne per retro-compatibilità
     if "nome" in df.columns:
         df = df.rename(columns={"nome": "utente"})
     for c in EXPECTED_COLS:
@@ -150,16 +151,7 @@ def build_week_matrix(df: pd.DataFrame, monday: date) -> pd.DataFrame:
     colmap = {d: format_data_it(pd.to_datetime(d).date()) for d in dates}
     base = base.rename(columns=colmap)
 
-    # Aggiungi colonna FOTO base64 (senza etichetta)
-    base.insert(0, "", "")
-    for user in USERS:
-        img = USER_IMAGES.get(user)
-        b64 = img_to_base64(img)
-        if b64:
-            base.loc[user, ""] = f"data:image/png;base64,{b64}"
-
-    # Nascondi nome dell'indice
-    base.index.name = ""
+    base.index.name = ""  # rimuovi "Utente"
 
     return base
 
@@ -176,7 +168,7 @@ st.title("📅 Pianificazione Presenze Settimanali (con Foto)")
 
 today = date.today()
 
-# Selettore settimana (0 = questa)
+# Selettore settimana (0 = questa, 1 = prossima)
 options = [0, 1]
 labels = []
 for w in options:
@@ -184,10 +176,8 @@ for w in options:
     fri = mon + timedelta(days=4)
     if w == 0:
         prefix = "Questa settimana"
-    elif w == 1:
-        prefix = "Prossima settimana"
     else:
-        prefix = f"Tra {w} settimane"
+        prefix = "Prossima settimana"
     labels.append(f"{prefix}: {format_data_it(mon)} – {format_data_it(fri)}")
 
 week_offset = st.selectbox("Scegli la settimana:", options=options, format_func=lambda i: labels[i])
@@ -197,68 +187,45 @@ friday_sel = monday_sel + timedelta(days=4)
 week_no = monday_sel.isocalendar().week
 
 st.markdown(
-    f"### 🗓️ Settimana {week_no}: "
-    f"**{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
+    f"### 🗓️ Settimana {week_no}: **{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
 )
 
 # CARICA MATRICE
 df_all = load_df()
 matrix = build_week_matrix(df_all, monday_sel)
 
-# --- STILI: avatar + prima colonna + altezza riga ---
-st.markdown(
-    """
-    <style>
-      /* dimensione avatar (quadrato o tondo cambiando border-radius) */
-      img.userpic {
-        width: 56px;
-        height: 56px;
-        border-radius: 8px;      /* metti 50% per avatar tondo */
-        object-fit: cover;
-        display: block;
-        margin: 0 auto;          /* centra in cella */
-      }
+# ============================
+# RENDER TABELLA CON FOTO PERFETTE
+# ============================
 
-      /* allarga la prima colonna (colonna immagini) */
-      table.dataframe td:first-child, 
-      table.dataframe th:first-child {
-        width: 72px !important;   /* spazio sufficiente per 56px + padding */
-        min-width: 72px !important;
-        max-width: 72px !important;
-        text-align: center;
-      }
+# Funzione: foto + nome utente
+def render_left_col(user):
+    img_path = USER_IMAGES.get(user, "")
+    b64 = img_to_base64(img_path)
+    if b64:
+        return f"""
+        <div style='display:flex; align-items:center; gap:12px;'>
+            data:image/png;base64,{b64}
+            <span style='font-size:16px; color:white;'>{user}</span>
+        </div>
+        """
+    else:
+        return f"<span style='font-size:16px;'>{user}</span>"
 
-      /* aumenta altezza riga e centra verticalmente il contenuto */
-      table.dataframe td, table.dataframe th {
-        padding: 10px 12px;
-        line-height: 1.25em;
-        vertical-align: middle !important;
-      }
+# Prepara DataFrame HTML
+df_html = matrix.copy()
 
-      /* colonna indice (nomi utenti) un po' più larga e centrata verticalmente */
-      table.dataframe th.row_heading {
-        min-width: 150px;
-        vertical-align: middle !important;
-      }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# Prima colonna: utente con foto
+df_html.insert(0, " ", [render_left_col(u) for u in df_html.index])
 
-# --- PREPARA TAB HTML: trasforma data URL in <img> nella prima colonna "" ---
-matrix_html = matrix.copy()
+# Reset index per evitare doppia colonna
+df_html = df_html.reset_index(drop=True)
 
-if "" in matrix_html.columns:
-    for user in USERS:
-        b64 = matrix_html.loc[user, ""]
-        if b64:
-            matrix_html.loc[user, ""] = f'<img src="{b64}" class="userpic">'
+# Applica colori alle celle dei giorni
+color_cols = [c for c in df_html.columns if c not in [" "]]
+styled = df_html.style.applymap(style_colors, subset=color_cols)
 
-# Applica colori a tutte le colonne tranne la colonna immagini ""
-color_cols = [c for c in matrix_html.columns if c != ""]
-styled = matrix_html.style.applymap(style_colors, subset=color_cols)
-
-# Render HTML (niente escape per permettere <img>)
+# Render tabella con HTML
 st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
 st.divider()
