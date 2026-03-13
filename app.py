@@ -5,30 +5,37 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import base64
 
 # =========================
 # CONFIGURAZIONE
 # =========================
 
-USERS = ["Basilicata Davide", "Giacomo Gioiosano", "Martuncelli Valeria", "Paratore Christian",
-          "Ricci Alessio"]
-STATUS = ["Smart Working", "Ufficio"]  # 2 soli casi
+USERS = [
+    "Basilicata Davide",
+    "Giacomo Gioiosano",
+    "Martuncelli Valeria",
+    "Paratore Christian",
+    "Ricci Alessio"
+]
+
+STATUS = ["Smart Working", "Ufficio"]
 SHEET_NAME = "RegistroPresenze"
 
-# Immagini utente (devi caricarle in /images/ dentro il repo GitHub)
+# Path immagini sul repo GitHub — caricati come BASE64
 USER_IMAGES = {
     "Basilicata Davide": "images/DB.png",
     "Giacomo Gioiosano": "images/GG.png",
     "Martuncelli Valeria": "images/VM.png",
     "Paratore Christian": "images/CP.png",
-    "Ricci Alessio": "images/AR.jpg",
+    "Ricci Alessio": "images/AR.jpg"
 }
 
-# Colori
+# Colori celle
 COLOR_MAP = {
-    "Smart Working": "background-color: #85C1E9; color: black;",   # azzurro
-    "Ufficio": "background-color: #82E0AA; color: black;",         # verde
-    "Non registrato": "background-color: #D5D8DC; color: black;",  # grigio
+    "Smart Working": "background-color: #85C1E9; color: black;",
+    "Ufficio": "background-color: #82E0AA; color: black;",
+    "Non registrato": "background-color: #D5D8DC; color: black;"
 }
 
 GIORNI_IT = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
@@ -36,11 +43,24 @@ MESI_IT = ["gennaio","febbraio","marzo","aprile","maggio","giugno",
            "luglio","agosto","settembre","ottobre","novembre","dicembre"]
 
 
+# =========================
+# FUNZIONI DI UTILITÀ
+# =========================
+
+def img_to_base64(path):
+    """Legge un file immagine locale → base64 per HTML inline."""
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
+
+
 def format_data_it(d: date) -> str:
     return f"{GIORNI_IT[d.weekday()]} {d.day} {MESI_IT[d.month-1]}"
 
 
-def week_monday(base: date, offset_weeks: int = 0) -> date:
+def week_monday(base: date, offset_weeks=0) -> date:
     today = base + timedelta(weeks=offset_weeks)
     return today - timedelta(days=today.weekday())
 
@@ -50,13 +70,14 @@ def week_dates(monday: date):
 
 
 # =========================
-# GOOGLE SHEET CONNECTION (USA I SECRETS TOML)
+# GOOGLE SHEET CONNECTION
 # =========================
 
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
 ]
+
 svc = dict(st.secrets["google_service_account"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(svc, scope)
 client = gspread.authorize(creds)
@@ -73,24 +94,16 @@ EXPECTED_COLS = [
 ]
 
 
-def load_df() -> pd.DataFrame:
+def load_df():
     records = sheet.get_all_records()
     if not records:
         return pd.DataFrame(columns=EXPECTED_COLS)
 
     df = pd.DataFrame(records)
 
-    # Adatta vecchie colonne se presenti
+    # Adeguamento colonne per retro-compatibilità
     if "nome" in df.columns:
         df = df.rename(columns={"nome": "utente"})
-    if "giorno" not in df.columns:
-        df["giorno"] = ""
-    if "sett_inizio" not in df.columns:
-        df["sett_inizio"] = ""
-    if "created_at" not in df.columns:
-        df["created_at"] = ""
-
-    # Garantisce lo schema
     for c in EXPECTED_COLS:
         if c not in df.columns:
             df[c] = ""
@@ -120,45 +133,44 @@ def build_week_matrix(df: pd.DataFrame, monday: date) -> pd.DataFrame:
     dates = [d.isoformat() for d in week_dates(monday)]
 
     if df.empty:
-        base = pd.DataFrame(index=USERS, columns=dates)
-        base = base.fillna("Non registrato")
+        base = pd.DataFrame(index=USERS, columns=dates).fillna("Non registrato")
     else:
         dff = df[df["sett_inizio"] == monday.isoformat()]
-
         if dff.empty:
-            base = pd.DataFrame(index=USERS, columns=dates)
-            base = base.fillna("Non registrato")
+            base = pd.DataFrame(index=USERS, columns=dates).fillna("Non registrato")
         else:
             dff = dff.sort_values("created_at")
             dff = dff.drop_duplicates(subset=["utente", "data"], keep="last")
-
             pivot = dff.pivot_table(index="utente", columns="data",
                                     values="presenza", aggfunc="last")
             pivot = pivot.reindex(index=USERS, columns=dates)
             base = pivot.fillna("Non registrato")
 
-    # Label eleganti per colonne
+    # colonne: data formattata
     colmap = {d: format_data_it(pd.to_datetime(d).date()) for d in dates}
     base = base.rename(columns=colmap)
 
-    # Aggiungi colonna FOTO
-    base.insert(0, "Foto", USERS)
+    # Aggiungi colonna FOTO base64
+    base.insert(0, "Foto", "")
     for user in USERS:
-        base.loc[user, "Foto"] = USER_IMAGES.get(user, "")
+        img = USER_IMAGES.get(user)
+        b64 = img_to_base64(img)
+        if b64:
+            base.loc[user, "Foto"] = f"data:image/png;base64,{b64}"
 
     base.index.name = "Utente"
     return base
 
 
-def style_colors(val: str):
+def style_colors(val):
     return COLOR_MAP.get(val, COLOR_MAP["Non registrato"])
 
 
 # =========================
-# UI
+# INTERFACCIA
 # =========================
 
-st.title("📅 Pianificazione Presenze Settimanali")
+st.title("📅 Pianificazione Presenze Settimanali (con Foto)")
 
 today = date.today()
 
@@ -176,11 +188,7 @@ for w in options:
         prefix = f"Tra {w} settimane"
     labels.append(f"{prefix}: {format_data_it(mon)} – {format_data_it(fri)}")
 
-week_offset = st.selectbox(
-    "Scegli la settimana:",
-    options=options,
-    format_func=lambda i: labels[i]
-)
+week_offset = st.selectbox("Scegli la settimana:", options=options, format_func=lambda i: labels[i])
 
 monday_sel = week_monday(today, week_offset)
 friday_sel = monday_sel + timedelta(days=4)
@@ -191,45 +199,45 @@ st.markdown(
     f"**{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
 )
 
-# CARICA DATI
+# CARICA MATRICE
 df_all = load_df()
 matrix = build_week_matrix(df_all, monday_sel)
 
-# Mostra tabella con immagini
-st.subheader("👀 Pianificazione (tutti gli utenti)")
+# Stile immagini
+st.markdown(
+    "<style>img.userpic{width:40px;height:40px;border-radius:6px;object-fit:cover;}</style>",
+    unsafe_allow_html=True
+)
 
-html = "<style>img.userpic{width:40px;height:40px;border-radius:6px;object-fit:cover;}</style>"
-st.markdown(html, unsafe_allow_html=True)
-
-# Converti Foto in <img>
+# Converti foto base64 in <img>
 matrix_html = matrix.copy()
 for user in USERS:
-    img = USER_IMAGES.get(user, "")
-    matrix_html.loc[user, "Foto"] = f'<img class="userpic" src="{img}">'
+    b64 = matrix_html.loc[user, "Foto"]
+    if b64:
+        matrix_html.loc[user, "Foto"] = f'<img src="{b64}" class="userpic">'
 
+# render tabella
 styled = matrix_html.style.applymap(style_colors, subset=matrix_html.columns[1:])
 st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
 st.divider()
 
 # =========================
-# INSERIMENTO PIANIFICAZIONE
+# INSERIMENTO SETTIMANALE
 # =========================
 
-st.subheader("✏️ Imposta pianificazione per un utente")
+st.subheader("✏️ Imposta pianificazione settimanale")
 
 utente = st.selectbox("Utente:", USERS)
 
-st.caption("Imposta per ogni giorno se sarai in **Smart Working** o in **Ufficio**.")
 cols = st.columns(5)
-
 choices = {}
 for i, d in enumerate(week_dates(monday_sel)):
     with cols[i]:
         scelta = st.radio(
             label=format_data_it(d),
             options=STATUS,
-            index=1,  # default Ufficio
+            index=1,
             key=f"{utente}_{d.isoformat()}_{week_offset}"
         )
         choices[d] = scelta
