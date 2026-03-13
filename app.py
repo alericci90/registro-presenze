@@ -13,7 +13,7 @@ import base64
 
 USERS = [
     "Basilicata Davide",
-    "Giacomo Gioiosano",
+    "Gioiosano Giacomo",
     "Martuncelli Valeria",
     "Paratore Christian",
     "Ricci Alessio"
@@ -25,7 +25,7 @@ SHEET_NAME = "RegistroPresenze"
 # Path immagini sul repo GitHub — caricati come BASE64
 USER_IMAGES = {
     "Basilicata Davide": "images/DB.png",
-    "Giacomo Gioiosano": "images/GG.png",
+    "Gioiosano Giacomo": "images/GG.png",
     "Martuncelli Valeria": "images/VM.png",
     "Paratore Christian": "images/CP.png",
     "Ricci Alessio": "images/AR.jpg"
@@ -205,21 +205,28 @@ st.markdown(
 df_all = load_df()
 matrix = build_week_matrix(df_all, monday_sel)
 
-# Stile immagini
+# Stile immagini (usa < > reali, non &lt; &gt;)
 st.markdown(
     "<style>img.userpic{width:40px;height:40px;border-radius:6px;object-fit:cover;}</style>",
     unsafe_allow_html=True
 )
 
-# Converti foto base64 in <img>
+# Prepara tabella HTML: la colonna immagini ora ha intestazione vuota ""
 matrix_html = matrix.copy()
-for user in USERS:
-    b64 = matrix_html.loc[user, "Foto"]
-    if b64:
-        matrix_html.loc[user, "Foto"] = f'<img src="{b64}" class="userpic">'
 
-# render tabella
-styled = matrix_html.style.applymap(style_colors, subset=matrix_html.columns[1:])
+# Inserisci il tag <img> nella colonna "" (prima colonna)
+for user in USERS:
+    b64 = None
+    if "" in matrix_html.columns:
+        b64 = matrix_html.loc[user, ""]
+    if b64:
+        matrix_html.loc[user, ""] = f'<img src="{b64}" class="userpic" alt="{user}">'
+
+# Applica colori a tutte le colonne tranne quella delle immagini
+color_cols = [c for c in matrix_html.columns if c != ""]
+styled = matrix_html.style.applymap(style_colors, subset=color_cols)
+
+# Render senza escaping per permettere <img>
 st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
 st.divider()
