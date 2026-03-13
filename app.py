@@ -150,15 +150,17 @@ def build_week_matrix(df: pd.DataFrame, monday: date) -> pd.DataFrame:
     colmap = {d: format_data_it(pd.to_datetime(d).date()) for d in dates}
     base = base.rename(columns=colmap)
 
-    # Aggiungi colonna FOTO base64
-    base.insert(0, "Foto", "")
+    # Aggiungi colonna FOTO base64 (senza etichetta)
+    base.insert(0, "", "")
     for user in USERS:
         img = USER_IMAGES.get(user)
         b64 = img_to_base64(img)
         if b64:
-            base.loc[user, "Foto"] = f"data:image/png;base64,{b64}"
+            base.loc[user, ""] = f"data:image/png;base64,{b64}"
 
-    base.index.name = "Utente"
+    # Nascondi nome dell'indice
+    base.index.name = ""
+
     return base
 
 
@@ -175,7 +177,7 @@ st.title("📅 Pianificazione Presenze Settimanali (con Foto)")
 today = date.today()
 
 # Selettore settimana (0 = questa)
-options = list(range(0, 9))
+options = [0, 1]
 labels = []
 for w in options:
     mon = week_monday(today, w)
