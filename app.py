@@ -185,8 +185,7 @@ def style_colors(val: str) -> str:
 # =========================
 # INTERFACCIA
 # =========================
-
-# LOGO grande in alto (centrato)
+# LOGO grande e responsivo in alto (centrato)
 logo_url = img_to_base64("images/logo.jpg")
 if logo_url:
     st.markdown(
@@ -195,10 +194,16 @@ if logo_url:
             display:flex;
             justify-content:center;
             align-items:center;
-            margin-bottom: 20px;
+            margin: 8px 0 24px 0;
         ">
-            <img src="{logo_url}" 
-                 style="max-width:280px; width:100%; height:auto;">
+            <img src="{logo_url}"
+                 alt="logo"
+                 style="
+                    width: min(60vw, 520px);
+                    max-width: 520px;
+                    height: auto;
+                    display: block;
+                 ">
         </div>
         """,
         unsafe_allow_html=True
