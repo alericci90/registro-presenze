@@ -186,19 +186,25 @@ def style_colors(val: str) -> str:
 # INTERFACCIA
 # =========================
 
-# --- LOGO in alto (centrato) ---
+# LOGO grande in alto (centrato)
 logo_url = img_to_base64("images/logo.jpg")
 if logo_url:
     st.markdown(
         f"""
-        <div style="display:flex; justify-content:center; align-items:center; margin-bottom: 8px;">
-            {f'<img src="{logo_url}" style="max-width:220px; height:auto; border-radius:6px;" />'}
+        <div style="
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            margin-bottom: 20px;
+        ">
+            <img src="{logo_url}" 
+                 style="max-width:280px; width:100%; height:auto;">
         </div>
         """,
         unsafe_allow_html=True
     )
 
-st.title("📅 Pianificazione Presenze Settimanali (con Foto)")
+st.title("Leasys Credit HQ - Pianificazione Presenze Settimanali 📅")
 
 today = date.today()
 
