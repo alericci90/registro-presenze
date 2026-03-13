@@ -17,10 +17,10 @@ SHEET_NAME = "RegistroPresenze"
 
 # Immagini utente (devi caricarle in /images/ dentro il repo GitHub)
 USER_IMAGES = {
-    "Basilicata Davide": "images/DB.jpg",
-    "Giacomo Gioiosano": "images/GG.jpg",
-    "Martuncelli Valeria": "images/VM.jpg",
-    "Paratore Christian": "images/CP.jpg",
+    "Basilicata Davide": "images/DB.png",
+    "Giacomo Gioiosano": "images/GG.png",
+    "Martuncelli Valeria": "images/VM.png",
+    "Paratore Christian": "images/CP.png",
     "Ricci Alessio": "images/AR.jpg",
 }
 
