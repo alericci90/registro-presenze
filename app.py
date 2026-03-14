@@ -61,7 +61,7 @@ st.set_page_config(page_title="Pianificazione Presenze", layout="wide")
 # FUNZIONI DI UTILITÀ
 # =========================
 
-def img_to_base64(path: str) -> str | None:
+def img_to_base64(path: str):
     """Legge file immagine → data URL base64 (sicuro su Streamlit Cloud)."""
     try:
         with open(path, "rb") as f:
@@ -78,11 +78,11 @@ def img_to_base64(path: str) -> str | None:
         return None
 
 
-def format_data_it(d: date) -> str:
+def format_data_it(d: date):
     return f"{GIORNI_IT[d.weekday()]} {d.day} {MESI_IT[d.month-1]}"
 
 
-def week_monday(base: date, offset_weeks: int = 0) -> date:
+def week_monday(base: date, offset_weeks: int = 0):
     today = base + timedelta(weeks=offset_weeks)
     return today - timedelta(days=today.weekday())
 
@@ -131,7 +131,7 @@ def load_df() -> pd.DataFrame:
     return df[EXPECTED_COLS]
 
 
-def append_week_plan(user: str, monday: date, choices: dict[date, str]):
+def append_week_plan(user: str, monday: date, choices: dict):
     """
     Salva la pianificazione per i 5 giorni.
     NB: se l'utente sceglie 'Non registrato', lo salviamo comunque esplicitamente,
@@ -185,7 +185,8 @@ def style_colors(val: str) -> str:
 # =========================
 # INTERFACCIA
 # =========================
-# LOGO grande e responsivo in alto (centrato)
+
+# --- LOGO grande e responsivo in alto (centrato) ---
 logo_url = img_to_base64("images/logo.jpg")
 if logo_url:
     st.markdown(
@@ -232,33 +233,47 @@ st.markdown(
     f"### 🗓️ Settimana {week_no}: **{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
 )
 
-# Toggle Modalità Mobile (ON di default)
-mobile = st.toggle("📱 Modalità mobile", value=False, help="Vista ottimizzata per smartphone")
-
 # Carica dati e matrice
 df_all = load_df()
 matrix = build_week_matrix(df_all, monday_sel)
 
-# =========================
-# RENDER: DESKTOP vs MOBILE
-# =========================
+# ====== CSS: auto-switch Mobile/Desktop via media query ======
+st.markdown(
+    """
+    <style>
+      /* di default: mostra desktop, nascondi mobile */
+      .view-desktop { display: block; }
+      .view-mobile  { display: none; }
 
-if not mobile:
-    # ---------- DESKTOP: Tabella classica ----------
-    # Prima colonna: foto + nome come HTML così non si schiaccia
-    def left_cell(user: str) -> str:
-        data_url = img_to_base64(USER_IMAGES.get(user, ""))
-        if data_url:
-            return (
-                f"<div style='display:flex;align-items:center;gap:10px;'>"
-                f"<img src='{data_url}' style='width:56px;height:56px;border-radius:8px;object-fit:cover;'/>"
-                f"<span style='font-size:16px;'>{user}</span>"
-                f"</div>"
-            )
-        else:
-            return f"<span style='font-size:16px;'>{user}</span>"
+      /* su schermi piccoli (smartphone) mostra mobile e nascondi desktop */
+      @media (max-width: 820px) {
+        .view-desktop { display: none !important; }
+        .view-mobile  { display: block !important; }
+      }
 
-    df_html = matrix.copy()
+      /* stile avatar/nome per desktop */
+      .avatar-cell { display:flex; align-items:center; gap:10px; }
+      .avatar-cell img { width:56px; height:56px; border-radius:8px; object-fit:cover; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# =========================
+# VISTA DESKTOP (tabella)
+# =========================
+from copy import deepcopy
+
+def left_cell(user: str) -> str:
+    data_url = img_to_base64(USER_IMAGES.get(user, ""))
+    if data_url:
+        return f"<div class='avatar-cell'><img src='{data_url}'/><span style='font-size:16px;'>{user}</span></div>"
+    return f"<div class='avatar-cell'><span style='font-size:16px;'>{user}</span></div>"
+
+with st.container():
+    st.markdown("<div class='view-desktop'>", unsafe_allow_html=True)
+
+    df_html = deepcopy(matrix)
     df_html.insert(0, " ", [left_cell(u) for u in df_html.index])
     df_html = df_html.reset_index(drop=True)
 
@@ -266,60 +281,55 @@ if not mobile:
     styled = df_html.style.applymap(style_colors, subset=color_cols)
     st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
-else:
-    # ---------- MOBILE: Card per utente ----------
-    # CSS per card responsive
-    st.markdown(
-        """
-        <style>
-          .card {
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 12px;
-            background: rgba(255,255,255,0.03);
-          }
-          .row {
-            display: flex; align-items: center; gap: 12px;
-          }
-          .avatar {
-            width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
-          }
-          .uname {
-            font-size: 17px; font-weight: 600;
-          }
-          .pills {
-            display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
-          }
-          .pill {
-            border-radius: 999px;
-            padding: 6px 10px;
-            font-size: 13px;
-            border: 1px solid rgba(0,0,0,0.05);
-          }
-          @media (max-width: 420px) {
-            .avatar { width: 56px; height: 56px; }
-            .uname { font-size: 16px; }
-            .pill { font-size: 12px; padding: 5px 8px; }
-          }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Per ogni utente, mostra card con avatar e 5 “pillole”
+# =========================
+# VISTA MOBILE (card)
+# =========================
+st.markdown(
+    """
+    <style>
+      .card {
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 10px;
+        padding: 12px;
+        margin: 10px 0;
+        background: rgba(255,255,255,0.03);
+      }
+      .row {
+        display: flex; align-items: center; gap: 12px;
+      }
+      .avatar {
+        width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+      }
+      .uname { font-size: 17px; font-weight: 600; }
+      .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .pill {
+        border-radius: 999px; padding: 6px 10px; font-size: 13px;
+        border: 1px solid rgba(0,0,0,0.05);
+      }
+      @media (max-width: 420px) {
+        .avatar { width: 56px; height: 56px; }
+        .uname { font-size: 16px; }
+        .pill { font-size: 12px; padding: 5px 8px; }
+      }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+with st.container():
+    st.markdown("<div class='view-mobile'>", unsafe_allow_html=True)
+
     for user in matrix.index.tolist():
         data_url = img_to_base64(USER_IMAGES.get(user, ""))
 
-        # Costruisco pillole giorni
+        # Costruisco pillole per i 5 giorni
         pills_html = ""
         for col in matrix.columns:
             stato = str(matrix.loc[user, col])
             bg = PILL_BG.get(stato, "#D5D8DC")
-            pills_html += (
-                f"<span class='pill' style='background:{bg};color:{PILL_FG};'>"
-                f"{col.split()[0]}: {stato}</span>"
-            )
+            pills_html += f"<span class='pill' style='background:{bg};color:{PILL_FG};'>{col.split()[0]}: {stato}</span>"
 
         card_html = (
             "<div class='card'>"
@@ -332,32 +342,58 @@ else:
         )
         st.markdown(card_html, unsafe_allow_html=True)
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
 st.divider()
 
 # =========================
-# INSERIMENTO SETTIMANALE
+# INSERIMENTO SETTIMANALE (due form separati: desktop e mobile)
 # =========================
 
 st.subheader("✏️ Imposta pianificazione settimanale")
 
-utente = st.selectbox("Utente:", USERS)
+# ----- DESKTOP FORM -----
+with st.container():
+    st.markdown("<div class='view-desktop'>", unsafe_allow_html=True)
+    with st.form("form_desktop"):
+        utente_d = st.selectbox("Utente:", USERS, key="utente_d")
+        cols = st.columns(5)
+        choices_d = {}
+        for i, d in enumerate(week_dates(monday_sel)):
+            with cols[i]:
+                scelta = st.radio(
+                    label=format_data_it(d),
+                    options=STATUS,
+                    index=2,   # default "Non registrato"
+                    key=f"rad_d_{utente_d}_{d.isoformat()}_{week_offset}",
+                    horizontal=True
+                )
+                choices_d[d] = scelta
+        save_d = st.form_submit_button("💾 Salva pianificazione (desktop)")
+        if save_d:
+            append_week_plan(utente_d, monday_sel, choices_d)
+            st.success(f"Pianificazione salvata per {utente_d} (settimana {week_no}).")
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# Su mobile mettiamo radio verticali (una colonna), su desktop in 5 colonne
-cols = st.columns(5) if not mobile else st.columns(1)
-choices: dict[date, str] = {}
-
-for i, d in enumerate(week_dates(monday_sel)):
-    with (cols[i] if not mobile else cols[0]):
-        scelta = st.radio(
-            label=format_data_it(d),
-            options=STATUS,        # include anche "Non registrato" e "Assente"
-            index=2,               # default = "Non registrato"
-            key=f"{utente}_{d.isoformat()}_{'m' if mobile else 'd'}_{week_offset}",
-            horizontal=not mobile
-        )
-        choices[d] = scelta
-
-if st.button("💾 Salva pianificazione"):
-    append_week_plan(utente, monday_sel, choices)
-    st.success(f"Pianificazione salvata per {utente} (settimana {week_no}).")
-    st.rerun()
+# ----- MOBILE FORM -----
+with st.container():
+    st.markdown("<div class='view-mobile'>", unsafe_allow_html=True)
+    with st.form("form_mobile"):
+        utente_m = st.selectbox("Utente:", USERS, key="utente_m")
+        choices_m = {}
+        for d in week_dates(monday_sel):
+            scelta = st.radio(
+                label=format_data_it(d),
+                options=STATUS,
+                index=2,   # default "Non registrato"
+                key=f"rad_m_{utente_m}_{d.isoformat()}_{week_offset}",
+                horizontal=False
+            )
+            choices_m[d] = scelta
+        save_m = st.form_submit_button("💾 Salva pianificazione (mobile)")
+        if save_m:
+            append_week_plan(utente_m, monday_sel, choices_m)
+            st.success(f"Pianificazione salvata per {utente_m} (settimana {week_no}).")
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
