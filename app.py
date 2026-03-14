@@ -92,6 +92,7 @@ def week_monday(base: date, offset_weeks: int = 0) -> date:
 
 
 def week_dates(monday: date):
+    # Sempre e solo LUN–VEN
     return [monday + timedelta(days=i) for i in range(5)]
 
 
@@ -217,7 +218,13 @@ st.title("Leasys Credit HQ - Pianificazione Presenze Settimanali 📅")
 
 today = date.today()
 
-# Selettore settimana (0 = questa, 1 = prossima)
+# =========================
+# SCELTA SETTIMANA — da sabato/domenica mostra di default la prossima
+# =========================
+# Se oggi è Sabato (5) o Domenica (6) → default settimana successiva; altrimenti corrente
+default_week_offset = 1 if today.weekday() >= 5 else 0
+
+# Mostriamo solo queste due opzioni
 options = [0, 1]
 labels = []
 for w in options:
@@ -226,7 +233,15 @@ for w in options:
     labels.append(("Questa settimana" if w == 0 else "Prossima settimana")
                   + f": {format_data_it(mon)} – {format_data_it(fri)}")
 
-week_offset = st.selectbox("Scegli la settimana:", options=options, format_func=lambda i: labels[i])
+# Indice di default del selectbox coerente con il sabato/domenica
+default_index = options.index(default_week_offset)
+
+week_offset = st.selectbox(
+    "Scegli la settimana:",
+    options=options,
+    index=default_index,                  # <--- PATCH: default cambia nel weekend
+    format_func=lambda i: labels[i]
+)
 
 monday_sel = week_monday(today, week_offset)
 friday_sel = monday_sel + timedelta(days=4)
