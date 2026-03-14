@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import base64
+from copy import deepcopy
 
 # =========================
 # CONFIGURAZIONE
@@ -199,12 +200,7 @@ if logo_url:
         ">
             <img src="{logo_url}"
                  alt="logo"
-                 style="
-                    width: min(60vw, 520px);
-                    max-width: 520px;
-                    height: auto;
-                    display: block;
-                 ">
+                 style="width: min(70vw, 640px); max-width: 640px; height: auto; display: block;">
         </div>
         """,
         unsafe_allow_html=True
@@ -232,6 +228,12 @@ week_no = monday_sel.isocalendar().week
 st.markdown(
     f"### 🗓️ Settimana {week_no}: **{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
 )
+
+# --- Query param per forzare la vista: ?view=mobile | ?view=desktop | auto (default) ---
+qp = st.experimental_get_query_params()
+force_view = qp.get("view", ["auto"])[0].lower()
+render_desktop = force_view in ("desktop", "auto")
+render_mobile  = force_view in ("mobile", "auto")
 
 # Carica dati e matrice
 df_all = load_df()
@@ -262,99 +264,93 @@ st.markdown(
 # =========================
 # VISTA DESKTOP (tabella)
 # =========================
-from copy import deepcopy
 
 def left_cell(user: str) -> str:
     data_url = img_to_base64(USER_IMAGES.get(user, ""))
     if data_url:
-        return f"<div class='avatar-cell'><img src='{data_url}'/><span style='font-size:16px;'>{user}</span></div>"
+        return f"<div class='avatar-cell'><img src='{data_url}'/><span style='font-size:16px;'>&nbsp;{user}</span></div>"
     return f"<div class='avatar-cell'><span style='font-size:16px;'>{user}</span></div>"
 
-with st.container():
-    st.markdown("<div class='view-desktop'>", unsafe_allow_html=True)
+if render_desktop:
+    with st.container():
+        st.markdown("<div class='view-desktop'>", unsafe_allow_html=True)
 
-    df_html = deepcopy(matrix)
-    df_html.insert(0, " ", [left_cell(u) for u in df_html.index])
-    df_html = df_html.reset_index(drop=True)
+        df_html = deepcopy(matrix)
+        df_html.insert(0, " ", [left_cell(u) for u in df_html.index])
+        df_html = df_html.reset_index(drop=True)
 
-    color_cols = [c for c in df_html.columns if c.strip() != ""]
-    styled = df_html.style.applymap(style_colors, subset=color_cols)
-    st.write(styled.to_html(escape=False), unsafe_allow_html=True)
+        color_cols = [c for c in df_html.columns if c.strip() != ""]
+        styled = df_html.style.applymap(style_colors, subset=color_cols)
+        st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # VISTA MOBILE (card)
 # =========================
-st.markdown(
-    """
-    <style>
-      .card {
-        border: 1px solid rgba(255,255,255,0.15);
-        border-radius: 10px;
-        padding: 12px;
-        margin: 10px 0;
-        background: rgba(255,255,255,0.03);
-      }
-      .row {
-        display: flex; align-items: center; gap: 12px;
-      }
-      .avatar {
-        width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
-      }
-      .uname { font-size: 17px; font-weight: 600; }
-      .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-      .pill {
-        border-radius: 999px; padding: 6px 10px; font-size: 13px;
-        border: 1px solid rgba(0,0,0,0.05);
-      }
-      @media (max-width: 420px) {
-        .avatar { width: 56px; height: 56px; }
-        .uname { font-size: 16px; }
-        .pill { font-size: 12px; padding: 5px 8px; }
-      }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+if render_mobile:
+    st.markdown(
+        """
+        <style>
+          .card {
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 12px;
+            margin: 10px 0;
+            background: rgba(255,255,255,0.03);
+          }
+          .row { display: flex; align-items: center; gap: 12px; }
+          .avatar { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+          .uname { font-size: 17px; font-weight: 600; }
+          .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+          .pill {
+            border-radius: 999px; padding: 6px 10px; font-size: 13px;
+            border: 1px solid rgba(0,0,0,0.05);
+          }
+          @media (max-width: 420px) {
+            .avatar { width: 56px; height: 56px; }
+            .uname { font-size: 16px; }
+            .pill { font-size: 12px; padding: 5px 8px; }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-with st.container():
-    st.markdown("<div class='view-mobile'>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown("<div class='view-mobile'>", unsafe_allow_html=True)
 
-    for user in matrix.index.tolist():
-        data_url = img_to_base64(USER_IMAGES.get(user, ""))
+        for user in matrix.index.tolist():
+            data_url = img_to_base64(USER_IMAGES.get(user, ""))
 
-        # Costruisco pillole per i 5 giorni
-        pills_html = ""
-        for col in matrix.columns:
-            stato = str(matrix.loc[user, col])
-            bg = PILL_BG.get(stato, "#D5D8DC")
-            pills_html += f"<span class='pill' style='background:{bg};color:{PILL_FG};'>{col.split()[0]}: {stato}</span>"
+            pills_html = ""
+            for col in matrix.columns:
+                stato = str(matrix.loc[user, col])
+                bg = PILL_BG.get(stato, "#D5D8DC")
+                pills_html += f"<span class='pill' style='background:{bg};color:{PILL_FG};'>{col.split()[0]}: {stato}</span>"
 
-        card_html = (
-            "<div class='card'>"
-            "<div class='row'>"
-            f"{f'<img src=\"{data_url}\" class=\"avatar\"/>' if data_url else ''}"
-            f"<div class='uname'>{user}</div>"
-            "</div>"
-            f"<div class='pills'>{pills_html}</div>"
-            "</div>"
-        )
-        st.markdown(card_html, unsafe_allow_html=True)
+            card_html = (
+                "<div class='card'>"
+                "<div class='row'>"
+                f"{f'<img src=\"{data_url}\" class=\"avatar\"/>' if data_url else ''}"
+                f"<div class='uname'>{user}</div>"
+                "</div>"
+                f"<div class='pills'>{pills_html}</div>"
+                "</div>"
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
 
 # =========================
-# INSERIMENTO SETTIMANALE (due form separati: desktop e mobile)
+# INSERIMENTO SETTIMANALE (mostra solo il form della vista attiva)
 # =========================
 
 st.subheader("✏️ Imposta pianificazione settimanale")
 
-# ----- DESKTOP FORM -----
-with st.container():
-    st.markdown("<div class='view-desktop'>", unsafe_allow_html=True)
+if render_desktop:
     with st.form("form_desktop"):
         utente_d = st.selectbox("Utente:", USERS, key="utente_d")
         cols = st.columns(5)
@@ -365,20 +361,16 @@ with st.container():
                     label=format_data_it(d),
                     options=STATUS,
                     index=2,   # default "Non registrato"
-                    key=f"rad_d_{utente_d}_{d.isoformat()}_{week_offset}",
+                    key=f"rad_d_{utente_d}_{d.isoformat()}_{week_no}",
                     horizontal=True
                 )
                 choices_d[d] = scelta
-        save_d = st.form_submit_button("💾 Salva pianificazione (desktop)")
-        if save_d:
+        if st.form_submit_button("💾 Salva pianificazione (desktop)"):
             append_week_plan(utente_d, monday_sel, choices_d)
             st.success(f"Pianificazione salvata per {utente_d} (settimana {week_no}).")
             st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
-# ----- MOBILE FORM -----
-with st.container():
-    st.markdown("<div class='view-mobile'>", unsafe_allow_html=True)
+if render_mobile:
     with st.form("form_mobile"):
         utente_m = st.selectbox("Utente:", USERS, key="utente_m")
         choices_m = {}
@@ -387,13 +379,11 @@ with st.container():
                 label=format_data_it(d),
                 options=STATUS,
                 index=2,   # default "Non registrato"
-                key=f"rad_m_{utente_m}_{d.isoformat()}_{week_offset}",
+                key=f"rad_m_{utente_m}_{d.isoformat()}_{week_no}",
                 horizontal=False
             )
             choices_m[d] = scelta
-        save_m = st.form_submit_button("💾 Salva pianificazione (mobile)")
-        if save_m:
+        if st.form_submit_button("💾 Salva pianificazione (mobile)"):
             append_week_plan(utente_m, monday_sel, choices_m)
             st.success(f"Pianificazione salvata per {utente_m} (settimana {week_no}).")
             st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
