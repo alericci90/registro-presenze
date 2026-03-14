@@ -233,7 +233,7 @@ st.markdown(
 )
 
 # Toggle Modalità Mobile (ON di default)
-mobile = st.toggle("📱 Modalità mobile", value=True, help="Vista ottimizzata per smartphone")
+mobile = st.toggle("📱 Modalità mobile", value=False, help="Vista ottimizzata per smartphone")
 
 # Carica dati e matrice
 df_all = load_df()
