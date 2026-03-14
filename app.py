@@ -6,7 +6,6 @@ from datetime import date, datetime, timedelta
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import base64
-from copy import deepcopy
 
 # =========================
 # CONFIGURAZIONE
@@ -62,7 +61,7 @@ st.set_page_config(page_title="Pianificazione Presenze", layout="wide")
 # FUNZIONI DI UTILITÀ
 # =========================
 
-def img_to_base64(path: str):
+def img_to_base64(path: str) -> str | None:
     """Legge file immagine → data URL base64 (sicuro su Streamlit Cloud)."""
     try:
         with open(path, "rb") as f:
@@ -79,11 +78,11 @@ def img_to_base64(path: str):
         return None
 
 
-def format_data_it(d: date):
+def format_data_it(d: date) -> str:
     return f"{GIORNI_IT[d.weekday()]} {d.day} {MESI_IT[d.month-1]}"
 
 
-def week_monday(base: date, offset_weeks: int = 0):
+def week_monday(base: date, offset_weeks: int = 0) -> date:
     today = base + timedelta(weeks=offset_weeks)
     return today - timedelta(days=today.weekday())
 
@@ -132,7 +131,7 @@ def load_df() -> pd.DataFrame:
     return df[EXPECTED_COLS]
 
 
-def append_week_plan(user: str, monday: date, choices: dict):
+def append_week_plan(user: str, monday: date, choices: dict[date, str]):
     """
     Salva la pianificazione per i 5 giorni.
     NB: se l'utente sceglie 'Non registrato', lo salviamo comunque esplicitamente,
@@ -186,8 +185,7 @@ def style_colors(val: str) -> str:
 # =========================
 # INTERFACCIA
 # =========================
-
-# --- LOGO grande e responsivo in alto (centrato) ---
+# LOGO grande e responsivo in alto (centrato)
 logo_url = img_to_base64("images/logo.jpg")
 if logo_url:
     st.markdown(
@@ -200,7 +198,12 @@ if logo_url:
         ">
             <img src="{logo_url}"
                  alt="logo"
-                 style="width: min(70vw, 640px); max-width: 640px; height: auto; display: block;">
+                 style="
+                    width: min(60vw, 520px);
+                    max-width: 520px;
+                    height: auto;
+                    display: block;
+                 ">
         </div>
         """,
         unsafe_allow_html=True
@@ -229,66 +232,43 @@ st.markdown(
     f"### 🗓️ Settimana {week_no}: **{format_data_it(monday_sel)} – {format_data_it(friday_sel)}**"
 )
 
-# --- Query param per forzare la vista: ?view=mobile | ?view=desktop | auto (default) ---
-qp = st.experimental_get_query_params()
-force_view = qp.get("view", ["auto"])[0].lower()
-render_desktop = force_view in ("desktop", "auto")
-render_mobile  = force_view in ("mobile", "auto")
+# Toggle Modalità Mobile (ON di default)
+mobile = st.toggle("📱 Modalità mobile", value=True, help="Vista ottimizzata per smartphone")
 
 # Carica dati e matrice
 df_all = load_df()
 matrix = build_week_matrix(df_all, monday_sel)
 
-# ====== CSS: auto-switch Mobile/Desktop via media query ======
-st.markdown(
-    """
-    <style>
-      /* di default: mostra desktop, nascondi mobile */
-      .view-desktop { display: block; }
-      .view-mobile  { display: none; }
-
-      /* su schermi piccoli (smartphone) mostra mobile e nascondi desktop */
-      @media (max-width: 820px) {
-        .view-desktop { display: none !important; }
-        .view-mobile  { display: block !important; }
-      }
-
-      /* stile avatar/nome per desktop */
-      .avatar-cell { display:flex; align-items:center; gap:10px; }
-      .avatar-cell img { width:56px; height:56px; border-radius:8px; object-fit:cover; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
 # =========================
-# VISTA DESKTOP (tabella)
+# RENDER: DESKTOP vs MOBILE
 # =========================
 
-def left_cell(user: str) -> str:
-    data_url = img_to_base64(USER_IMAGES.get(user, ""))
-    if data_url:
-        return f"<div class='avatar-cell'><img src='{data_url}'/><span style='font-size:16px;'>&nbsp;{user}</span></div>"
-    return f"<div class='avatar-cell'><span style='font-size:16px;'>{user}</span></div>"
+if not mobile:
+    # ---------- DESKTOP: Tabella classica ----------
+    # Prima colonna: foto + nome come HTML così non si schiaccia
+    def left_cell(user: str) -> str:
+        data_url = img_to_base64(USER_IMAGES.get(user, ""))
+        if data_url:
+            return (
+                f"<div style='display:flex;align-items:center;gap:10px;'>"
+                f"<img src='{data_url}' style='width:56px;height:56px;border-radius:8px;object-fit:cover;'/>"
+                f"<span style='font-size:16px;'>{user}</span>"
+                f"</div>"
+            )
+        else:
+            return f"<span style='font-size:16px;'>{user}</span>"
 
-if render_desktop:
-    with st.container():
-        st.markdown("<div class='view-desktop'>", unsafe_allow_html=True)
+    df_html = matrix.copy()
+    df_html.insert(0, " ", [left_cell(u) for u in df_html.index])
+    df_html = df_html.reset_index(drop=True)
 
-        df_html = deepcopy(matrix)
-        df_html.insert(0, " ", [left_cell(u) for u in df_html.index])
-        df_html = df_html.reset_index(drop=True)
+    color_cols = [c for c in df_html.columns if c.strip() != ""]
+    styled = df_html.style.applymap(style_colors, subset=color_cols)
+    st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
-        color_cols = [c for c in df_html.columns if c.strip() != ""]
-        styled = df_html.style.applymap(style_colors, subset=color_cols)
-        st.write(styled.to_html(escape=False), unsafe_allow_html=True)
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# =========================
-# VISTA MOBILE (card)
-# =========================
-if render_mobile:
+else:
+    # ---------- MOBILE: Card per utente ----------
+    # CSS per card responsive
     st.markdown(
         """
         <style>
@@ -296,15 +276,25 @@ if render_mobile:
             border: 1px solid rgba(255,255,255,0.15);
             border-radius: 10px;
             padding: 12px;
-            margin: 10px 0;
+            margin-bottom: 12px;
             background: rgba(255,255,255,0.03);
           }
-          .row { display: flex; align-items: center; gap: 12px; }
-          .avatar { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
-          .uname { font-size: 17px; font-weight: 600; }
-          .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+          .row {
+            display: flex; align-items: center; gap: 12px;
+          }
+          .avatar {
+            width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+          }
+          .uname {
+            font-size: 17px; font-weight: 600;
+          }
+          .pills {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+          }
           .pill {
-            border-radius: 999px; padding: 6px 10px; font-size: 13px;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 13px;
             border: 1px solid rgba(0,0,0,0.05);
           }
           @media (max-width: 420px) {
@@ -317,73 +307,57 @@ if render_mobile:
         unsafe_allow_html=True
     )
 
-    with st.container():
-        st.markdown("<div class='view-mobile'>", unsafe_allow_html=True)
+    # Per ogni utente, mostra card con avatar e 5 “pillole”
+    for user in matrix.index.tolist():
+        data_url = img_to_base64(USER_IMAGES.get(user, ""))
 
-        for user in matrix.index.tolist():
-            data_url = img_to_base64(USER_IMAGES.get(user, ""))
-
-            pills_html = ""
-            for col in matrix.columns:
-                stato = str(matrix.loc[user, col])
-                bg = PILL_BG.get(stato, "#D5D8DC")
-                pills_html += f"<span class='pill' style='background:{bg};color:{PILL_FG};'>{col.split()[0]}: {stato}</span>"
-
-            card_html = (
-                "<div class='card'>"
-                "<div class='row'>"
-                f"{f'<img src=\"{data_url}\" class=\"avatar\"/>' if data_url else ''}"
-                f"<div class='uname'>{user}</div>"
-                "</div>"
-                f"<div class='pills'>{pills_html}</div>"
-                "</div>"
+        # Costruisco pillole giorni
+        pills_html = ""
+        for col in matrix.columns:
+            stato = str(matrix.loc[user, col])
+            bg = PILL_BG.get(stato, "#D5D8DC")
+            pills_html += (
+                f"<span class='pill' style='background:{bg};color:{PILL_FG};'>"
+                f"{col.split()[0]}: {stato}</span>"
             )
-            st.markdown(card_html, unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)
+        card_html = (
+            "<div class='card'>"
+            "<div class='row'>"
+            f"{f'<img src=\"{data_url}\" class=\"avatar\"/>' if data_url else ''}"
+            f"<div class='uname'>{user}</div>"
+            "</div>"
+            f"<div class='pills'>{pills_html}</div>"
+            "</div>"
+        )
+        st.markdown(card_html, unsafe_allow_html=True)
 
 st.divider()
 
 # =========================
-# INSERIMENTO SETTIMANALE (mostra solo il form della vista attiva)
+# INSERIMENTO SETTIMANALE
 # =========================
 
 st.subheader("✏️ Imposta pianificazione settimanale")
 
-if render_desktop:
-    with st.form("form_desktop"):
-        utente_d = st.selectbox("Utente:", USERS, key="utente_d")
-        cols = st.columns(5)
-        choices_d = {}
-        for i, d in enumerate(week_dates(monday_sel)):
-            with cols[i]:
-                scelta = st.radio(
-                    label=format_data_it(d),
-                    options=STATUS,
-                    index=2,   # default "Non registrato"
-                    key=f"rad_d_{utente_d}_{d.isoformat()}_{week_no}",
-                    horizontal=True
-                )
-                choices_d[d] = scelta
-        if st.form_submit_button("💾 Salva pianificazione (desktop)"):
-            append_week_plan(utente_d, monday_sel, choices_d)
-            st.success(f"Pianificazione salvata per {utente_d} (settimana {week_no}).")
-            st.rerun()
+utente = st.selectbox("Utente:", USERS)
 
-if render_mobile:
-    with st.form("form_mobile"):
-        utente_m = st.selectbox("Utente:", USERS, key="utente_m")
-        choices_m = {}
-        for d in week_dates(monday_sel):
-            scelta = st.radio(
-                label=format_data_it(d),
-                options=STATUS,
-                index=2,   # default "Non registrato"
-                key=f"rad_m_{utente_m}_{d.isoformat()}_{week_no}",
-                horizontal=False
-            )
-            choices_m[d] = scelta
-        if st.form_submit_button("💾 Salva pianificazione (mobile)"):
-            append_week_plan(utente_m, monday_sel, choices_m)
-            st.success(f"Pianificazione salvata per {utente_m} (settimana {week_no}).")
-            st.rerun()
+# Su mobile mettiamo radio verticali (una colonna), su desktop in 5 colonne
+cols = st.columns(5) if not mobile else st.columns(1)
+choices: dict[date, str] = {}
+
+for i, d in enumerate(week_dates(monday_sel)):
+    with (cols[i] if not mobile else cols[0]):
+        scelta = st.radio(
+            label=format_data_it(d),
+            options=STATUS,        # include anche "Non registrato" e "Assente"
+            index=2,               # default = "Non registrato"
+            key=f"{utente}_{d.isoformat()}_{'m' if mobile else 'd'}_{week_offset}",
+            horizontal=not mobile
+        )
+        choices[d] = scelta
+
+if st.button("💾 Salva pianificazione"):
+    append_week_plan(utente, monday_sel, choices)
+    st.success(f"Pianificazione salvata per {utente} (settimana {week_no}).")
+    st.rerun()
