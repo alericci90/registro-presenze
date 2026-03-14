@@ -13,8 +13,10 @@ import base64
 
 USERS = [
     "Basilicata Davide",
+    "Di Tonno Simona",
     "Gioiosano Giacomo",
     "Martuncelli Valeria",
+    "Mascheroni Elena",
     "Paratore Christian",
     "Ricci Alessio"
 ]
@@ -27,8 +29,10 @@ SHEET_NAME = "RegistroPresenze"
 # Path immagini sul repo GitHub — caricate come BASE64
 USER_IMAGES = {
     "Basilicata Davide": "images/DB.png",
+    "Di Tonno Simona": "images/DSDT.png",
     "Gioiosano Giacomo": "images/GG.png",
     "Martuncelli Valeria": "images/VM.png",
+    "Mascheroni Elena": "images/EM.png",
     "Paratore Christian": "images/CP.png",
     "Ricci Alessio": "images/AR.jpg"
 }
