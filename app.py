@@ -29,7 +29,7 @@ SHEET_NAME = "RegistroPresenze"
 # Path immagini sul repo GitHub — caricate come BASE64
 USER_IMAGES = {
     "Basilicata Davide": "images/DB.png",
-    "Di Tonno Simona": "images/DSDT.png",
+    "Di Tonno Simona": "images/SDT.png",
     "Gioiosano Giacomo": "images/GG.png",
     "Martuncelli Valeria": "images/VM.png",
     "Mascheroni Elena": "images/EM.png",
