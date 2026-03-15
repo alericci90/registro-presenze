@@ -31,7 +31,7 @@ USER_IMAGES = {
     "Basilicata Davide": "images/DB.png",
     "Di Tonno Simona": "images/SDT.png",
     "Gioiosano Giacomo": "images/GG.png",
-    "Martuncelli Valeria": "images/VM.png",
+    "Martuncelli Valeria": "images/VM.jpeg",
     "Mascheroni Elena": "images/EM.png",
     "Paratore Christian": "images/CP.png",
     "Ricci Alessio": "images/AR.jpg"
