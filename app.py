@@ -18,6 +18,7 @@ USERS = [
     "Martuncelli Valeria",
     "Mascheroni Elena",
     "Paratore Christian",
+    "Proshin Alexey",
     "Ricci Alessio"
 ]
 
@@ -34,6 +35,7 @@ USER_IMAGES = {
     "Martuncelli Valeria": "images/VM.jpeg",
     "Mascheroni Elena": "images/EM.png",
     "Paratore Christian": "images/CP.png",
+    "Proshin Alexey": "images/AP.png",
     "Ricci Alessio": "images/AR.jpg"
 }
 
