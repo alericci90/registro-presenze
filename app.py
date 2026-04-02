@@ -284,7 +284,7 @@ if not mobile:
     df_html = df_html.reset_index(drop=True)
 
     color_cols = [c for c in df_html.columns if c.strip() != ""]
-    styled = df_html.style.applymap(style_colors, subset=color_cols)
+    styled = df_html.style.map(style_colors, subset=color_cols)
     st.write(styled.to_html(escape=False), unsafe_allow_html=True)
 
 else:
